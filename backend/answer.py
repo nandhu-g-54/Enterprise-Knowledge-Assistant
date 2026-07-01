@@ -1,10 +1,15 @@
+import math
+
 from retriever import retrieve
 from reranker import rerank
 from llm import generate_answer
-import math
 
 
 def calculate_confidence(documents):
+    """
+    Calculate confidence score from reranker scores.
+    Returns a value between 0 and 1.
+    """
 
     if not documents:
         return 0.0
@@ -12,77 +17,86 @@ def calculate_confidence(documents):
     scores = []
 
     for doc in documents:
-        score = doc.metadata.get("rerank_score", 0)
+
+        score = doc.metadata.get("rerank_score", 0.0)
 
         try:
             score = float(score)
-        except:
+        except (ValueError, TypeError):
             score = 0.0
 
         scores.append(score)
 
-    if not scores:
-        return 0.0
+    # Sigmoid normalization
+    normalized = [
+        1 / (1 + math.exp(-score))
+        for score in scores
+    ]
 
-    # sigmoid normalization
-    def sigmoid(x):
-        return 1 / (1 + math.exp(-x))
+    confidence = sum(normalized) / len(normalized)
 
-    normalized = [sigmoid(s) for s in scores]
-
-    avg = sum(normalized) / len(normalized)
-
-    return round(avg, 2)
+    return round(confidence, 2)
 
 
 def extract_sources(documents):
+    """
+    Extract unique document sources.
+    """
 
     sources = []
     visited = set()
 
     for doc in documents:
 
-        key = (
-            doc.metadata.get("document"),
-            doc.metadata.get("page")
-        )
+        document = doc.metadata.get("document", "Unknown")
+        page = doc.metadata.get("page", 1)
+
+        key = (document, page)
 
         if key not in visited:
+
             visited.add(key)
 
             sources.append({
-                "document": doc.metadata.get("document"),
-                "page": doc.metadata.get("page")
+                "document": document,
+                "page": page
             })
 
     return sources
 
 
 def ask(question):
+    """
+    Complete RAG pipeline.
+    """
 
     try:
-        print("=" * 50)
-        print("Question:", question)
 
-        print("Step 1: Retrieving documents...")
+        print("=" * 60)
+        print("Question :", question)
+
+        print("Retrieving documents...")
         docs = retrieve(question)
-        print(f"Retrieved {len(docs)} documents")
+
+        print(f"Retrieved {len(docs)} document(s).")
 
         if not docs:
+
             return {
-                "answer": "No relevant documents found.",
+                "answer": "No relevant information was found in the uploaded documents.",
                 "confidence": 0.0,
                 "sources": []
             }
 
-        print("Step 2: Reranking...")
+        print("Reranking documents...")
         docs = rerank(question, docs)
-        print(f"Reranked {len(docs)} documents")
 
-        print("Step 3: Calling LLM...")
+        print(f"Documents after reranking : {len(docs)}")
+
+        print("Generating answer...")
         answer = generate_answer(question, docs)
 
-        print("LLM response received")
+        print("Answer generated successfully.")
 
         return {
             "answer": answer,
@@ -91,10 +105,11 @@ def ask(question):
         }
 
     except Exception as e:
-        print("ERROR in ask():", str(e))
+
+        print("Error:", str(e))
 
         return {
-            "answer": "System error occurred while processing the request.",
+            "answer": f"System Error: {str(e)}",
             "confidence": 0.0,
             "sources": []
         }

@@ -1,4 +1,5 @@
 from langchain_chroma import Chroma
+
 from embeddings import get_embedding_model
 from config import CHROMA_DB
 
@@ -8,12 +9,16 @@ vectordb = None
 
 
 def close_vectordb():
+    """
+    Close ChromaDB instance.
+    """
     global vectordb
     vectordb = None
 
+
 def get_vectordb():
     """
-    Lazy load ChromaDB to avoid file locking issues
+    Lazy load ChromaDB to avoid file locking issues.
     """
     global vectordb
 
@@ -26,26 +31,50 @@ def get_vectordb():
     return vectordb
 
 
-def retrieve(question: str, k: int = 5):
+def retrieve(question: str, k: int = 100):
+    """
+    Retrieve all relevant chunks using MMR search.
 
-    db = get_vectordb()   # 🔥 FIX HERE
+    k       : Number of results returned
+    fetch_k : Number of candidates considered before MMR selection
+    """
+
+    db = get_vectordb()
 
     retriever = db.as_retriever(
         search_type="mmr",
         search_kwargs={
             "k": k,
-            "fetch_k": 20
+            "fetch_k": 200
         }
     )
 
-    return retriever.invoke(question)
+    documents = retriever.invoke(question)
+
+    return documents
 
 
-def similarity_search(question: str, k: int = 5):
+def similarity_search(question: str, k: int = 100):
+    """
+    Similarity search.
+    """
+
     db = get_vectordb()
-    return db.similarity_search(question, k=k)
+
+    return db.similarity_search(
+        question,
+        k=k
+    )
 
 
-def similarity_search_with_score(question: str, k: int = 5):
+def similarity_search_with_score(question: str, k: int = 100):
+    """
+    Similarity search with relevance score.
+    """
+
     db = get_vectordb()
-    return db.similarity_search_with_score(question, k=k)
+
+    return db.similarity_search_with_score(
+        question,
+        k=k
+    )
